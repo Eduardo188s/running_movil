@@ -22,7 +22,7 @@ class HomePage extends StatelessWidget {
             const Text(
               'Running',
               style: TextStyle(
-                fontSize: 24,
+                fontSize: 25,
                 fontWeight: FontWeight.bold,
                 fontStyle: FontStyle.italic,
                 color: Colors.black,
