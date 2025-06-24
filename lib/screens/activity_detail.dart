@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -6,12 +7,14 @@ class ActivityDetailPage extends StatefulWidget {
   final String date;
   final String duration;
   final String distance;
+  final Map<String, dynamic> sessionData;
 
   const ActivityDetailPage({
     super.key,
     required this.date,
     required this.duration,
     required this.distance,
+    required this.sessionData,
   });
 
   @override
@@ -26,22 +29,16 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with SingleTick
   @override
   void initState() {
     super.initState();
-
     _controller = AnimationController(
       duration: const Duration(milliseconds: 700),
       vsync: this,
     );
-
-    _fadeAnimation = Tween<double>(begin: 0, end: 1).animate(CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeInOut,
-    ));
-
-    _slideAnimation = Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero).animate(CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeOut,
-    ));
-
+    _fadeAnimation = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+    _slideAnimation = Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
+    );
     _controller.forward();
   }
 
@@ -53,6 +50,8 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with SingleTick
 
   @override
   Widget build(BuildContext context) {
+    final sessionData = widget.sessionData;
+
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
@@ -77,7 +76,7 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with SingleTick
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              _buildInfoCard(),
+              _buildInfoCard(sessionData),
               const SizedBox(height: 24),
               const Text(
                 'Ruta del recorrido',
@@ -88,43 +87,7 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with SingleTick
                 ),
               ),
               const SizedBox(height: 20),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(20),
-                child: Container(
-                  decoration: BoxDecoration(
-                    boxShadow: [
-                      BoxShadow(color: Colors.black26, blurRadius: 10, offset: Offset(2, 4)),
-                    ],
-                  ),
-                  height: 300,
-                  child: FlutterMap(
-                    options: MapOptions(
-                      center: LatLng(19.43, -99.13),
-                      zoom: 15,
-                    ),
-                    children: [
-                      TileLayer(
-                        urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                        userAgentPackageName: 'com.example.app',
-                      ),
-                      PolylineLayer(
-                        polylines: [
-                          Polyline(
-                            points: [
-                              LatLng(19.431, -99.132),
-                              LatLng(19.432, -99.131),
-                              LatLng(19.433, -99.130),
-                              LatLng(19.434, -99.129),
-                            ],
-                            strokeWidth: 4.5,
-                            color: Colors.blue,
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+              _buildMap(sessionData),
             ],
           ),
         ),
@@ -132,7 +95,11 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with SingleTick
     );
   }
 
-  Widget _buildInfoCard() {
+  Widget _buildInfoCard(Map<String, dynamic> data) {
+    final calories = data['calories']?.toString() ?? '0';
+    final pace = data['pace']?.toString() ?? 'N/A';
+    final heartRate = data['heartRate']?.toString() ?? '0';
+
     return AnimatedContainer(
       duration: const Duration(milliseconds: 500),
       curve: Curves.easeOutCubic,
@@ -140,27 +107,21 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with SingleTick
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(22),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 10,
-            offset: Offset(3, 3),
-          )
-        ],
+        boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(3, 3))],
       ),
       child: Column(
         children: [
           _infoRow(Icons.calendar_today, 'Fecha', widget.date),
           const SizedBox(height: 10),
-          _infoRow(Icons.timer, 'Duración', widget.duration),
+          _infoRow(Icons.timer, 'Duración', '${widget.duration} min'),
           const SizedBox(height: 10),
           _infoRow(Icons.directions_run, 'Distancia', '${widget.distance} km'),
           const Divider(height: 30, color: Colors.grey),
-          _infoRow(Icons.local_fire_department, 'Calorías quemadas', '310 kcal'),
+          _infoRow(Icons.local_fire_department, 'Calorías quemadas', '$calories kcal'),
           const SizedBox(height: 10),
-          _infoRow(Icons.speed, 'Ritmo promedio', '6.5 min/km'),
+          _infoRow(Icons.speed, 'Ritmo promedio', pace),
           const SizedBox(height: 10),
-          _infoRow(Icons.favorite, 'Frecuencia cardíaca', '135 bpm'),
+          _infoRow(Icons.favorite, 'Frecuencia cardíaca', '$heartRate bpm'),
         ],
       ),
     );
@@ -174,21 +135,60 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with SingleTick
         Expanded(
           child: Text(
             '$label:',
-            style: const TextStyle(
-              fontSize: 18,
-              fontStyle: FontStyle.italic, 
-              fontWeight: FontWeight.bold),
+            style: const TextStyle(fontSize: 18, fontStyle: FontStyle.italic, fontWeight: FontWeight.bold),
           ),
         ),
         Text(
           value,
-          style: const TextStyle(
-            fontSize: 16,
-            fontStyle: FontStyle.italic,
-            ),
+          style: const TextStyle(fontSize: 16, fontStyle: FontStyle.italic),
         ),
       ],
     );
   }
-}
 
+  Widget _buildMap(Map<String, dynamic> data) {
+    final route = data['route'] as List<dynamic>?;
+
+    if (route == null || route.isEmpty) {
+      return const Center(
+        child: Text(
+          'No hay datos de ruta disponibles.',
+          style: TextStyle(fontStyle: FontStyle.italic),
+        ),
+      );
+    }
+
+    final points = route.map((coord) {
+      final lat = coord['lat'] ?? 0.0;
+      final lng = coord['lng'] ?? 0.0;
+      return LatLng(lat, lng);
+    }).toList();
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        decoration: const BoxDecoration(
+          boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 10, offset: Offset(2, 4))],
+        ),
+        height: 300,
+        child: FlutterMap(
+          options: MapOptions(
+            center: points.first,
+            zoom: 15,
+          ),
+          children: [
+            TileLayer(
+              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+              userAgentPackageName: 'com.example.app',
+            ),
+            PolylineLayer(
+              polylines: [
+                Polyline(points: points, strokeWidth: 4.5, color: Colors.blue),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

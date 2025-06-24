@@ -1,61 +1,143 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:recorrido_salud/screens/activity_detail.dart';
 
-class ExercisePage extends StatelessWidget {
+class ExercisePage extends StatefulWidget {
   const ExercisePage({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F6FA),
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black87, size: 20),
-          onPressed: () => Navigator.pop(context),
-        ),
-        backgroundColor: Colors.white,
-        elevation: 0,
-        centerTitle: true,
-        title: const Text(
-          'Actividad',
-          style: TextStyle(
-            color: Colors.black87,
-            fontWeight: FontWeight.w600,
-            fontStyle: FontStyle.italic,
-            fontSize: 25,
-          ),
-        ),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-        children: [
-          const SizedBox(height: 10),
-          _buildSummaryCard(),
-          const SizedBox(height: 25),
-          _buildSessionCard(
-            context,
-            date: '24 ABRIL 2025',
-            duration: '35 min',
-            distance: '1.8',
-          ),
-          _buildSessionCard(
-            context,
-            date: '16 ABRIL 2025',
-            duration: '1.10 h',
-            distance: '2.6',
-          ),
-          _buildSessionCard(
-            context,
-            date: '15 ABRIL 2025',
-            duration: '1.15 h',
-            distance: '2.3',
-          ),
+  State<ExercisePage> createState() => _ExercisePageState();
+}
+
+class _ExercisePageState extends State<ExercisePage> {
+  Future<void> _addTestSession(User user) async {
+    try {
+      await FirebaseFirestore.instance.collection('sessions').add({
+        'uid': user.uid,
+        'date': DateTime.now(),
+        'duration': 35,
+        'distance': 4.5,
+        'calories': 280,
+        'pace': '7:45 min/km',
+        'heartRate': 118,
+        'route': [
+          {'lat': 19.4326, 'lng': -99.1332},
+          {'lat': 19.4330, 'lng': -99.1340},
+          {'lat': 19.4335, 'lng': -99.1350},
         ],
-      ),
+      });
+
+      debugPrint('Sesión agregada correctamente');
+    } catch (e) {
+      debugPrint('Error al agregar sesión: $e');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, authSnapshot) {
+        if (authSnapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        }
+
+        final user = authSnapshot.data;
+
+        if (user == null) {
+          return const Scaffold(body: Center(child: Text("No has iniciado sesión.")));
+        }
+
+        return Scaffold(
+          backgroundColor: const Color(0xFFF5F6FA),
+          appBar: AppBar(
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black87),
+              onPressed: () => Navigator.pop(context),
+            ),
+            backgroundColor: Colors.white,
+            elevation: 0,
+            centerTitle: true,
+            title: const Text(
+              'Actividad',
+              style: TextStyle(
+                color: Colors.black87,
+                fontWeight: FontWeight.w600,
+                fontStyle: FontStyle.italic,
+                fontSize: 25,
+              ),
+            ),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.add_circle_outline, color: Colors.blueAccent),
+                tooltip: 'Agregar sesión de prueba',
+                onPressed: () => _addTestSession(user),
+              ),
+            ],
+          ),
+          body: StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('sessions')
+                .where('uid', isEqualTo: user.uid)
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                return const Center(child: Text("No hay sesiones registradas aún."));
+              }
+
+              final sessions = snapshot.data!.docs;
+
+              // Ordenar manualmente por fecha descendente
+              sessions.sort((a, b) {
+                final aDate = (a['date'] as Timestamp).toDate();
+                final bDate = (b['date'] as Timestamp).toDate();
+                return bDate.compareTo(aDate);
+              });
+
+              double totalDuration = 0;
+              double totalDistance = 0;
+
+              for (var doc in sessions) {
+                final data = doc.data() as Map<String, dynamic>;
+                totalDuration += double.tryParse(data['duration'].toString()) ?? 0;
+                totalDistance += double.tryParse(data['distance'].toString()) ?? 0;
+              }
+
+              return ListView(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                children: [
+                  const SizedBox(height: 10),
+                  _buildSummaryCard(totalDuration, sessions.length, totalDistance),
+                  const SizedBox(height: 25),
+                  ...sessions.map((doc) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    final Timestamp ts = data['date'];
+                    final dt = ts.toDate();
+                    final formattedDate = '${dt.day}/${dt.month}/${dt.year}';
+
+                    return _buildSessionCard(
+                      context,
+                      date: formattedDate,
+                      duration: data['duration'].toString(),
+                      distance: data['distance'].toString(),
+                      fullData: data,
+                    );
+                  }),
+                ],
+              );
+            },
+          ),
+        );
+      },
     );
   }
 
-  Widget _buildSummaryCard() {
+  Widget _buildSummaryCard(double totalDuration, int sessionCount, double totalDistance) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 14),
       decoration: BoxDecoration(
@@ -66,11 +148,11 @@ class ExercisePage extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          _buildSummaryBox('50.9', 'Duración'),
+          _buildSummaryBox(totalDuration.toStringAsFixed(1), 'Duración'),
           _buildDivider(),
-          _buildSummaryBox('40', 'Sesiones'),
+          _buildSummaryBox(sessionCount.toString(), 'Sesiones'),
           _buildDivider(),
-          _buildSummaryBox('90.8', 'Km'),
+          _buildSummaryBox(totalDistance.toStringAsFixed(1), 'Km'),
         ],
       ),
     );
@@ -90,11 +172,7 @@ class ExercisePage extends StatelessWidget {
       children: [
         Text(
           value,
-          style: const TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.w500,
-            color: Colors.black87,
-          ),
+          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w500),
         ),
         const SizedBox(height: 4),
         Text(
@@ -114,15 +192,17 @@ class ExercisePage extends StatelessWidget {
     required String date,
     required String duration,
     required String distance,
+    required Map<String, dynamic> fullData,
   }) {
     return GestureDetector(
       onTap: () => Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => ActivityDetailPage(
+          builder: (_) => ActivityDetailPage(
             date: date,
             duration: duration,
             distance: distance,
+            sessionData: fullData,
           ),
         ),
       ),
@@ -148,11 +228,11 @@ class ExercisePage extends StatelessWidget {
             const SizedBox(height: 10),
             Row(
               children: [
-                Icon(Icons.access_time_rounded, size: 30, color: Colors.blue),
+                const Icon(Icons.access_time_rounded, size: 30, color: Colors.blue),
                 const SizedBox(width: 6),
                 Text(duration, style: const TextStyle(fontSize: 14)),
                 const SizedBox(width: 20),
-                Icon(Icons.place_outlined, size: 30, color: Colors.blue),
+                const Icon(Icons.place_outlined, size: 30, color: Colors.blue),
                 const SizedBox(width: 6),
                 Text('$distance km', style: const TextStyle(fontSize: 14)),
               ],

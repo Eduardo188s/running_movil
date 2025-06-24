@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:recorrido_salud/screens/exercise.dart';
 
@@ -7,6 +9,8 @@ class HomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
@@ -14,10 +18,7 @@ class HomePage extends StatelessWidget {
         backgroundColor: Colors.white,
         title: Row(
           children: [
-            Image.asset(
-              'assets/images/running_logo.png',
-              height: 40,
-            ),
+            Image.asset('assets/images/running_logo.png', height: 40),
             const SizedBox(width: 10),
             const Text(
               'Running',
@@ -34,8 +35,6 @@ class HomePage extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-
-          // 🟦 Banner animado de bienvenida
           FadeInDown(
             duration: const Duration(milliseconds: 800),
             child: Container(
@@ -71,47 +70,70 @@ class HomePage extends StatelessWidget {
                             fontSize: 17,
                             fontStyle: FontStyle.italic,
                             fontWeight: FontWeight.bold
-                            ),
+                          ),
                         ),
                       ],
                     ),
                   ),
-                  Image.asset(
-                    'assets/images/running_logo.png',
-                    height: 85,
+                  Image.asset('assets/images/running_logo.png', height: 85),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 25),
+
+          if (user != null)
+            FutureBuilder<QuerySnapshot>(
+              future: FirebaseFirestore.instance
+                  .collection('sessions')
+                  .where('uid', isEqualTo: user.uid)
+                  .get(),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                final docs = snapshot.data!.docs;
+                double totalMinutes = 0;
+                double totalKm = 0;
+                Set<String> uniqueDays = {};
+
+                for (var doc in docs) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  totalMinutes += double.tryParse(data['duration'].toString()) ?? 0;
+                  totalKm += double.tryParse(data['distance'].toString()) ?? 0;
+
+                  if (data['date'] is Timestamp) {
+                    final dt = (data['date'] as Timestamp).toDate();
+                    uniqueDays.add('${dt.year}-${dt.month}-${dt.day}');
+                  }
+                }
+
+                return ZoomIn(
+                  duration: const Duration(milliseconds: 700),
+                  child: Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [BoxShadow(blurRadius: 6, color: Colors.black12)],
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        _progressCircle('Días', uniqueDays.length, 7),
+                        _progressCircle('Min', totalMinutes.toInt(), 300),
+                        _progressCircle('Km', totalKm.toInt(), 50),
+                      ],
+                    ),
                   ),
-                ],
-              ),
+                );
+              },
             ),
-          ),
 
           const SizedBox(height: 25),
 
-          // 📊 Progreso semanal con animación
-          ZoomIn(
-            duration: const Duration(milliseconds: 700),
-            child: Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [BoxShadow(blurRadius: 6, color: Colors.black12)],
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                
-                children: [
-                  _progressCircle('Días', 3, 5),
-                  _progressCircle('Min', 90, 150),
-                  _progressCircle('Km', 12, 20),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 25),
-
-          // 🟪 Tarjeta de ejercicio con SlideIn
           SlideInLeft(
             duration: const Duration(milliseconds: 600),
             child: GestureDetector(
@@ -124,9 +146,7 @@ class HomePage extends StatelessWidget {
               child: Card(
                 color: Colors.white,
                 elevation: 4,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Row(
@@ -141,16 +161,6 @@ class HomePage extends StatelessWidget {
                                 fontSize: 25,
                                 fontStyle: FontStyle.italic,
                                 fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            SizedBox(height: 6),
-                            Text(
-                              '90.6 km recorridos esta semana',
-                              style: TextStyle(
-                                fontSize: 17,
-                                fontStyle: FontStyle.italic,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.grey,
                               ),
                             ),
                           ],
@@ -175,7 +185,6 @@ class HomePage extends StatelessWidget {
 
           const SizedBox(height: 25),
 
-          // ✨ Frase motivacional con Fade
           FadeInUp(
             duration: const Duration(milliseconds: 700),
             child: Container(

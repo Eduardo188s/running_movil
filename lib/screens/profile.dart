@@ -1,12 +1,28 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:recorrido_salud/screens/edit_profile.dart';
+import 'package:recorrido_salud/auth/login_page.dart';
 
 class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
 
+  Future<String?> _getUserProfileImageUrl(String uid) async {
+    try {
+      final ref = FirebaseStorage.instance.ref().child('profile_images/$uid.jpg');
+      final url = await ref.getDownloadURL();
+      return url;
+    } catch (e) {
+      return null;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
@@ -39,22 +55,38 @@ class ProfilePage extends StatelessWidget {
           children: [
             const SizedBox(height: 40),
 
-            // 🟢 Animación de entrada al avatar
-            ZoomIn(
-              duration: const Duration(milliseconds: 800),
-              child: CircleAvatar(
-                radius: 65,
-                backgroundImage: const AssetImage('assets/images/running_logo.png'),
-              ),
+            // Foto de perfil
+            FutureBuilder<String?>(
+              future: user != null ? _getUserProfileImageUrl(user.uid) : Future.value(null),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const CircleAvatar(
+                    radius: 65,
+                    backgroundColor: Colors.grey,
+                    child: CircularProgressIndicator(color: Colors.white),
+                  );
+                } else {
+                  final imageUrl = snapshot.data;
+                  return ZoomIn(
+                    duration: const Duration(milliseconds: 800),
+                    child: CircleAvatar(
+                      radius: 65,
+                      backgroundImage: imageUrl != null
+                          ? NetworkImage(imageUrl)
+                          : const AssetImage('assets/images/running_logo.png') as ImageProvider,
+                    ),
+                  );
+                }
+              },
             ),
 
             const SizedBox(height: 20),
 
             FadeInDown(
               delay: const Duration(milliseconds: 300),
-              child: const Text(
-                'Eduardo Sánchez',
-                style: TextStyle(
+              child: Text(
+                user?.displayName ?? 'Nombre no disponible',
+                style: const TextStyle(
                   fontSize: 24,
                   fontStyle: FontStyle.italic,
                   fontWeight: FontWeight.bold,
@@ -66,9 +98,9 @@ class ProfilePage extends StatelessWidget {
 
             FadeInDown(
               delay: const Duration(milliseconds: 450),
-              child: const Text(
-                'eduardodelarosa188@email.com',
-                style: TextStyle(
+              child: Text(
+                user?.email ?? 'Correo no disponible',
+                style: const TextStyle(
                   fontSize: 16,
                   fontStyle: FontStyle.italic,
                   color: Colors.grey,
@@ -78,33 +110,18 @@ class ProfilePage extends StatelessWidget {
 
             const SizedBox(height: 30),
 
-            // 🟡 Estadísticas
-            SlideInUp(
-              delay: const Duration(milliseconds: 500),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 6)],
-                  ),
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      _buildStatItem('Recorridos', '42'),
-                      _buildStatItem('Kilómetros', '238.7'),
-                      _buildStatItem('Calorías', '13,500'),
-                    ],
-                  ),
+            // Tarjeta de estadísticas dinámicas
+            if (user != null)
+              SlideInUp(
+                delay: const Duration(milliseconds: 500),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                  child: _buildStats(user.uid),
                 ),
               ),
-            ),
 
             const SizedBox(height: 30),
 
-            // 🔵 Menú de opciones
             FadeInUp(
               delay: const Duration(milliseconds: 700),
               child: Padding(
@@ -113,7 +130,14 @@ class ProfilePage extends StatelessWidget {
                   children: [
                     _buildOption(Icons.settings, 'Configuración', () {}),
                     _buildOption(Icons.help_outline, 'Ayuda y soporte', () {}),
-                    _buildOption(Icons.logout, 'Cerrar sesión', () {}, color: Colors.red),
+                    _buildOption(Icons.logout, 'Cerrar sesión', () async {
+                      await FirebaseAuth.instance.signOut();
+                      Navigator.pushAndRemoveUntil(
+                        context,
+                        MaterialPageRoute(builder: (_) => const LoginPage()),
+                        (route) => false,
+                      );
+                    }, color: Colors.red),
                   ],
                 ),
               ),
@@ -123,6 +147,48 @@ class ProfilePage extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildStats(String uid) {
+    return FutureBuilder<QuerySnapshot>(
+      future: FirebaseFirestore.instance
+          .collection('sessions')
+          .where('uid', isEqualTo: uid)
+          .get(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final docs = snapshot.data!.docs;
+        final recorridos = docs.length;
+        double kilometros = 0;
+        double calorias = 0;
+
+        for (var doc in docs) {
+          final data = doc.data() as Map<String, dynamic>;
+          kilometros += double.tryParse(data['distance'].toString()) ?? 0;
+          calorias += double.tryParse(data['calories'].toString()) ?? 0;
+        }
+
+        return Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 6)],
+          ),
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _buildStatItem('Recorridos', recorridos.toString()),
+              _buildStatItem('Kilómetros', kilometros.toStringAsFixed(1)),
+              _buildStatItem('Calorías', calorias.toStringAsFixed(0)),
+            ],
+          ),
+        );
+      },
     );
   }
 

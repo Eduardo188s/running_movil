@@ -1,6 +1,9 @@
 import 'dart:io';
 
 import 'package:animate_do/animate_do.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -15,6 +18,27 @@ class _EditProfilePageState extends State<EditProfilePage> {
   final nameController = TextEditingController();
   final emailController = TextEditingController();
   File? _image;
+  String? _imageUrl;
+  bool isSaving = false;
+
+  final user = FirebaseAuth.instance.currentUser;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    final doc = await FirebaseFirestore.instance.collection('users').doc(user!.uid).get();
+    if (doc.exists) {
+      final data = doc.data()!;
+      nameController.text = data['name'] ?? '';
+      emailController.text = user!.email ?? '';
+      _imageUrl = data['imageUrl'];
+      setState(() {});
+    }
+  }
 
   Future<void> _pickImage() async {
     final picker = ImagePicker();
@@ -22,6 +46,34 @@ class _EditProfilePageState extends State<EditProfilePage> {
     if (picked != null) {
       setState(() => _image = File(picked.path));
     }
+  }
+
+  Future<void> _saveProfile() async {
+    setState(() => isSaving = true);
+
+    Future<String?> _getUserProfileImageUrl(String uid) async {
+  try {
+    final ref = FirebaseStorage.instance.ref('profile_images/$uid.jpg');
+    return await ref.getDownloadURL();
+  } catch (e) {
+    print('No se encontró la imagen en Storage: $e');
+    return null; // Retorna null para que uses imagen local
+  }
+}
+
+   await FirebaseFirestore.instance.collection('users').doc(user!.uid).set({
+  'name': nameController.text.trim(),
+  'email': emailController.text.trim(),
+  'imageUrl': _imageUrl,
+}, SetOptions(merge: true));
+
+    if (emailController.text.trim() != user!.email) {
+      await user!.updateEmail(emailController.text.trim());
+    }
+    await user!.updateDisplayName(nameController.text.trim());
+
+    if (!mounted) return;
+    Navigator.pop(context);
   }
 
   @override
@@ -48,8 +100,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
         child: Column(
           children: [
             const SizedBox(height: 10),
-
-            // Animación al avatar
             ZoomIn(
               duration: const Duration(milliseconds: 700),
               child: Stack(
@@ -59,8 +109,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
                     radius: 70,
                     backgroundImage: _image != null
                         ? FileImage(_image!)
-                        : const AssetImage('assets/images/running_logo.png')
-                            as ImageProvider,
+                        : (_imageUrl != null
+                            ? NetworkImage(_imageUrl!)
+                            : const AssetImage('assets/images/running_logo.png')) as ImageProvider,
                   ),
                   Container(
                     decoration: const BoxDecoration(
@@ -77,52 +128,24 @@ class _EditProfilePageState extends State<EditProfilePage> {
                 ],
               ),
             ),
-
             const SizedBox(height: 30),
-
-            // Campos de texto animados
-            FadeInUp(
-              delay: const Duration(milliseconds: 400),
-              child: _buildTextField(
-                controller: nameController,
-                label: 'Nombre',
-              ),
-            ),
+            _buildTextField(controller: nameController, label: 'Nombre'),
             const SizedBox(height: 20),
-            FadeInUp(
-              delay: const Duration(milliseconds: 500),
-              child: _buildTextField(
-                controller: emailController,
-                label: 'Correo electrónico',
-              ),
-            ),
-
+            _buildTextField(controller: emailController, label: 'Correo electrónico'),
             const SizedBox(height: 30),
-
-            // Botón guardar
-            FadeInUp(
-              delay: const Duration(milliseconds: 600),
-              child: SizedBox(
-                width: 170,
-                height: 45,
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                  },
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    backgroundColor: Colors.blueAccent,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    textStyle: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
-                  child: const Text('Guardar cambios'),
+            SizedBox(
+              width: 170,
+              height: 45,
+              child: ElevatedButton(
+                onPressed: isSaving ? null : _saveProfile,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blueAccent,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
+                child: isSaving
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : const Text('Guardar cambios'),
               ),
             ),
           ],
@@ -131,10 +154,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
     );
   }
 
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String label,
-  }) {
+  Widget _buildTextField({required TextEditingController controller, required String label}) {
     return TextField(
       controller: controller,
       style: const TextStyle(color: Colors.black),
