@@ -84,11 +84,11 @@ class HomePage extends StatelessWidget {
           const SizedBox(height: 25),
 
           if (user != null)
-            FutureBuilder<QuerySnapshot>(
-              future: FirebaseFirestore.instance
+            StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
                   .collection('sessions')
                   .where('uid', isEqualTo: user.uid)
-                  .get(),
+                  .snapshots(),
               builder: (context, snapshot) {
                 if (!snapshot.hasData) {
                   return const Center(child: CircularProgressIndicator());
@@ -123,8 +123,8 @@ class HomePage extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
                         _progressCircle('Días', uniqueDays.length, 7),
-                        _progressCircle('Min', totalMinutes.toInt(), 300),
-                        _progressCircle('Km', totalKm.toInt(), 50),
+                        _progressCircle('Min', totalMinutes.toInt(), 1000),
+                        _progressCircle('Km', totalKm.toInt(), 10000),
                       ],
                     ),
                   ),

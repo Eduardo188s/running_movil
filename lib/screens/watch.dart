@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_blue/flutter_blue.dart';
 
 class WatchPage extends StatefulWidget {
   const WatchPage({super.key});
@@ -12,53 +11,17 @@ class _WatchPageState extends State<WatchPage> with SingleTickerProviderStateMix
   late AnimationController _controller;
   late Animation<double> _fadeIn;
 
-  FlutterBlue flutterBlue = FlutterBlue.instance;
-  List<BluetoothDevice> devicesList = [];
-  Map<DeviceIdentifier, ScanResult> scanResults = {};
-  bool isScanning = false;
-
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(duration: const Duration(milliseconds: 800), vsync: this);
     _fadeIn = CurvedAnimation(parent: _controller, curve: Curves.easeIn);
     _controller.forward();
-
-    startScan();
-  }
-
-  Future<void> startScan() async {
-    setState(() {
-      isScanning = true;
-      scanResults.clear();
-      devicesList.clear();
-    });
-
-    await flutterBlue.startScan(timeout: const Duration(seconds: 5));
-
-    // Escuchar resultados
-    flutterBlue.scanResults.listen((results) {
-      setState(() {
-        scanResults.clear();
-        for (var r in results) {
-          scanResults[r.device.id] = r;
-        }
-        devicesList = scanResults.values.map((r) => r.device).toList();
-      });
-    });
-
-    // Actualizar estado de escaneo
-    flutterBlue.isScanning.listen((scanning) {
-      setState(() {
-        isScanning = scanning;
-      });
-    });
   }
 
   @override
   void dispose() {
     _controller.dispose();
-    flutterBlue.stopScan();
     super.dispose();
   }
 
@@ -77,7 +40,7 @@ class _WatchPageState extends State<WatchPage> with SingleTickerProviderStateMix
             mainAxisSize: MainAxisSize.min,
             children: [
               const Text(
-                'Dispositivos Bluetooth Disponibles',
+                'Nuevo Dispositivo Disponible',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 20,
@@ -85,59 +48,50 @@ class _WatchPageState extends State<WatchPage> with SingleTickerProviderStateMix
                 ),
               ),
               const SizedBox(height: 20),
-              if (isScanning)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 16),
-                  child: CircularProgressIndicator(),
-                )
-              else if (devicesList.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 16),
-                  child: Text(
-                    'No se encontraron dispositivos',
-                    style: TextStyle(fontStyle: FontStyle.italic),
-                  ),
-                )
-              else
-                Flexible(
-                  child: ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: devicesList.length,
-                    itemBuilder: (context, index) {
-                      final device = devicesList[index];
-                      return ListTile(
-                        leading: const Icon(Icons.watch),
-                        title: Text(device.name.isNotEmpty ? device.name : 'Dispositivo desconocido'),
-                        subtitle: Text(device.id.id),
-                        trailing: ElevatedButton(
-                          child: const Text('Conectar'),
-                          onPressed: () {
-                            Navigator.pop(context);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  'Intentando conectar a ${device.name.isNotEmpty ? device.name : device.id.id}...',
-                                  style: const TextStyle(
-                                    fontStyle: FontStyle.italic,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                            );
-                            // Aquí puedes agregar la lógica para conectar al dispositivo
-                          },
+              Row(
+                children: [
+                  Image.asset('assets/images/reloj1.png', height: 80),
+                  const SizedBox(width: 20),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Huawei Band 6',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontStyle: FontStyle.italic,
+                            fontSize: 16,
+                          ),
                         ),
-                      );
-                    },
+                        SizedBox(height: 8),
+                        Text(
+                          'Disponible vía Bluetooth',
+                          style: TextStyle(fontStyle: FontStyle.italic),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
+                ],
+              ),
               const SizedBox(height: 20),
               ElevatedButton.icon(
-                icon: const Icon(Icons.refresh),
-                label: const Text('Buscar de nuevo'),
                 onPressed: () {
-                  startScan();
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Intentando conectar...",
+                    style: TextStyle(
+                      fontStyle: FontStyle.italic,
+                      fontWeight: FontWeight.bold
+                    ),)),
+                  );
                 },
+                icon: const Icon(Icons.bluetooth),
+                label: const Text('Conectar',
+                style: TextStyle(
+                  fontStyle: FontStyle.italic,
+                  fontWeight: FontWeight.bold
+                ),),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.blue,
                   foregroundColor: Colors.white,
@@ -162,7 +116,7 @@ class _WatchPageState extends State<WatchPage> with SingleTickerProviderStateMix
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
         color: Colors.white,
-        boxShadow: const [
+        boxShadow: [
           BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 4)),
         ],
       ),
@@ -272,4 +226,4 @@ class _WatchPageState extends State<WatchPage> with SingleTickerProviderStateMix
       ),
     );
   }
-}
+} 

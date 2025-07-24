@@ -22,6 +22,9 @@ dependencies:
   cloud_firestore: ^4.15.8
   flutter_blue: ^0.8.0
   flutter_reactive_ble: ^5.4.0
+  flutter_local_notifications: ^13.0.0
+  timezone: ^0.9.0
+  shared_preferences: ^2.2.3
 
 
 dev_dependencies:

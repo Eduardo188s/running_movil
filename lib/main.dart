@@ -4,10 +4,12 @@ import 'package:recorrido_salud/auth_gate.dart';
 import 'package:recorrido_salud/firebase_options.dart';
 import 'package:recorrido_salud/auth/register_page.dart'; 
 import 'package:recorrido_salud/auth/login_page.dart';
-import 'package:recorrido_salud/screens/main_screen.dart';  
+import 'package:recorrido_salud/screens/main_screen.dart';
+import 'package:recorrido_salud/services/notification.dart';  
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await NotificationService.initialize(); 
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );

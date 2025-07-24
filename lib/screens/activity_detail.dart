@@ -8,6 +8,7 @@ class ActivityDetailPage extends StatefulWidget {
   final String duration;
   final String distance;
   final Map<String, dynamic> sessionData;
+  final String docId;  // <-- ID del documento Firestore
 
   const ActivityDetailPage({
     super.key,
@@ -15,6 +16,7 @@ class ActivityDetailPage extends StatefulWidget {
     required this.duration,
     required this.distance,
     required this.sessionData,
+    required this.docId, // <-- Recibimos el docId
   });
 
   @override
@@ -48,6 +50,39 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with SingleTick
     super.dispose();
   }
 
+  Future<void> _deleteSession() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Eliminar sesión'),
+        content: const Text('¿Estás seguro que deseas eliminar esta sesión?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Eliminar', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        await FirebaseFirestore.instance.collection('sessions').doc(widget.docId).delete();
+        if (mounted) {
+          Navigator.of(context).pop(true); // Regresa y notifica que eliminó
+        }
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al eliminar sesión: $e')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final sessionData = widget.sessionData;
@@ -68,6 +103,13 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with SingleTick
         backgroundColor: Colors.white,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.black),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.delete, color: Colors.red),
+            tooltip: 'Eliminar sesión',
+            onPressed: _deleteSession,
+          ),
+        ],
       ),
       body: FadeTransition(
         opacity: _fadeAnimation,

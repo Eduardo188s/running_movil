@@ -126,6 +126,7 @@ class _ExercisePageState extends State<ExercisePage> {
                       duration: data['duration'].toString(),
                       distance: data['distance'].toString(),
                       fullData: data,
+                      docId: doc.id, // <-- pasamos el docId aquí
                     );
                   }),
                 ],
@@ -193,6 +194,7 @@ class _ExercisePageState extends State<ExercisePage> {
     required String duration,
     required String distance,
     required Map<String, dynamic> fullData,
+    required String docId,
   }) {
     return GestureDetector(
       onTap: () => Navigator.push(
@@ -203,6 +205,7 @@ class _ExercisePageState extends State<ExercisePage> {
             duration: duration,
             distance: distance,
             sessionData: fullData,
+            docId: docId,  // Pasamos docId para poder eliminar luego
           ),
         ),
       ),

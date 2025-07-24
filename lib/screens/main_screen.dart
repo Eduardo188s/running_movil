@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:recorrido_salud/screens/notification_list.dart';
 import 'package:recorrido_salud/screens/home.dart';
 import 'package:recorrido_salud/screens/profile.dart';
 import 'package:recorrido_salud/screens/watch.dart';
@@ -16,6 +17,7 @@ class _MainScreenState extends State<MainScreen> {
   final screens = const [
     WatchPage(),
     HomePage(),
+    NotificationsListPage(),
     ProfilePage(),
   ];
 
@@ -47,6 +49,11 @@ class _MainScreenState extends State<MainScreen> {
             icon: Icon(Icons.home_outlined),
             activeIcon: Icon(Icons.home),
             label: 'Home',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.notification_add_outlined),
+            activeIcon: Icon(Icons.notification_add),
+            label: 'Notifications',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.person_2_outlined),
